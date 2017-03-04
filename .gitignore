@@ -51,3 +51,4 @@ Icon?
 config.js
 private_key.pem
 /events/*
+.env

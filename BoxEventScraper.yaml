@@ -1,0 +1,58 @@
+﻿AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Schedules a polling event for retriving events from the Box API and storing .
+Resources:
+  StoreBoxEvents:
+    Type: "AWS::S3::Bucket"
+    Properties: 
+      BucketName: box-events
+  BoxEventStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+  BoxEventTable:
+    Type: AWS::Serverless::SimpleTable
+  ProcessBoxEvents:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: ProcessBoxEvents.handler
+      Runtime: nodejs4.3
+      Policies: AWSLambdaKinesisExecutionRole
+      CodeUri: s3://<bucket>/ProcessBoxEvents.zip
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt BoxEventStream.Arn
+            StartingPosition: TRIM_HORIZON
+      Environment:
+        Variables:
+          BOX_EVENT_S3_BUCKET: 'box-events'
+          BOX_EVENT_TABLE_NAME: !Ref BoxEventTable
+          BOX_ENTERPRISE_ID: ''
+  PollBoxEvents:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: PollBoxEvents.handler
+      Runtime: nodejs4.3
+      CodeUri: s3://<bucket>/PollBoxEvents.zip
+      Description: Function that polls the Box API for events and saves the JSON into S3.
+      MemorySize: 128
+      Timeout: 10
+      Policies: AWSLambdaExecute
+      Events:
+        Schedule1:
+          Type: Schedule
+          Properties:
+            Schedule: rate(30 seconds)
+      Environment:
+        Variables:
+          BOX_CLIENT_ID: ''
+          BOX_CLIENT_SECRET: ''
+          BOX_ENTERPRISE_ID: ''
+          BOX_PUBLIC_KEY_ID: ''
+          BOX_PRIVATE_KEY_FILENAME: 'private_key.pem'
+          BOX_PRIVATE_KEY_PASSWORD: 'password'
+          BOX_EVENT_KINESIS_STREAM: !Ref BoxEventStream
+          BOX_POLL_INTERVAL: '3'
+          BOX_POLL_TIME_MEASUREMENT: 'minutes'
